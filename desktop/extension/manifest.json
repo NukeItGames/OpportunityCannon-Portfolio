@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Opportunity Cannon Application Helper",
+  "version": "0.3.1",
+  "description": "Fill verified answers on the active application page. Never submits.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "nativeMessaging",
+    "tabs",
+    "alarms",
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    },
+    "default_title": "Opportunity Cannon"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhu1D/u9Q5coeARmbv3BG/SWXoVsWh6UYRtVx+CQlqWL7K7+k2LRVIIOgIuDD3iM3e+RkWWHv1ZEEKV2PBV3aJgkA0P/S811mkNSZ83V3Liyn4wM3Zx3l6bFZCA/clg2GJn6MWAz0ORoudjUHNSREhDVTIIB3EUMqhPE7SiThicr9BPldEHUiTFB2cCQudWDh+9FMhyu3xIMR00nLdWVtF3yksmw1JAdqiYSTRMtoqOpHuX8wDY+8F3tArX/d25UJ9mihmrWcBtyyLPprXw9Vbk/d07sUPoo8cALGNUsCEEpk+lU0HWpWqvyzx/dr67lpF+b7LPzy9iJYgyQPMSYajwIDAQAB",
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}

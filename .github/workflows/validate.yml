@@ -1,0 +1,100 @@
+name: Validate and package 0.3.1
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: node ../scripts/audit-publication.cjs
+      - run: npm audit --audit-level=high
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Install locked Electron runtime
+        run: node node_modules/electron/install.js
+      - name: Compile native host prerequisite for Windows baseline tests
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File native/build.ps1
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: node ../scripts/audit-publication.cjs
+      - run: npx playwright install chromium
+      - name: Production build and unsigned NSIS installer
+        run: npm run package -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Extract and audit installer payload
+        run: |
+          New-Item -ItemType Directory -Force test-results/privacy-final | Out-Null
+          7z x "release-0.3.1/Opportunity Cannon Setup 0.3.1.exe" -otest-results/installer -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          7z x 'test-results/installer/$PLUGINSDIR/app-64.7z' -otest-results/installer-app -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tests/package-audit.cjs test-results/installer-app generic
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tests/distribution-privacy.cjs test-results/installer-app release-0.3.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tests/branding-resources.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node ../scripts/runtime-notices.cjs test-results/installer-app release-0.3.1
+      - name: Seven desktop acceptance suites against extracted application
+        run: |
+          node tests/ui-packaged-suites.cjs "test-results/installer-app/Opportunity Cannon.exe"
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content test-results/ui-final/*.log
+            exit 1
+          }
+      - name: Fictional desktop demonstration and final UI checks
+        run: node tests/ui-final-acceptance.cjs "test-results/installer-app/Opportunity Cannon.exe"
+      - name: Chrome and Edge form controls
+        run: node tests/browsers.cjs
+      - name: Inspect extension pages where command-line loading is supported
+        run: node tests/ui-extension-acceptance.cjs
+      - name: Export reviewed installer and fictional evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Opportunity-Cannon-0.3.1-unsigned
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            desktop/release-0.3.1/Opportunity Cannon Setup 0.3.1.exe
+            desktop/release-0.3.1/Opportunity Cannon Setup 0.3.1.exe.blockmap
+            desktop/release-0.3.1/RUNTIME-NOTICES.txt
+            desktop/test-results/ui-final/*.png
+            desktop/test-results/ui-final/summary.json
+            desktop/test-results/ui-final/suites.json
+            desktop/test-results/ui-final/extensions.json
+            desktop/test-results/privacy-final/distribution-scan.json
+            desktop/test-results/branding/resources.json

@@ -1,0 +1,9 @@
+<!doctype html><html><body><form onsubmit="window.submitted=true;return false">
+<label>Full name<input id="name"></label><label>Email<input type="email"></label><label>Telephone<input aria-label="Phone" type="tel"></label>
+<label>Work experience<textarea></textarea></label><label>Education<textarea></textarea></label>
+<label>Company<input value="Preserve"></label><label>Skills<select><option value="">Choose</option><option>Testing</option></select></label>
+<fieldset><legend>Available?</legend><label>Yes<input type="radio" name="available" value="yes"></label><label>No<input type="radio" name="available" value="no"></label></fieldset>
+<label>Remote<input type="checkbox"></label><label>I agree to terms<input type="checkbox"></label>
+<label>Resume<input type="file"></label><label>Unknown required<input required></label><label>Password<input type="password"></label>
+<label>Ambiguous<input></label><button type="button" id="next" onclick="document.getElementById('dynamic').innerHTML='<label>Traction<textarea></textarea></label>'">Next page</button><div id="dynamic"></div><button type="submit">Submit</button>
+</form></body></html>

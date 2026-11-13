@@ -1,0 +1,97 @@
+name: Publish audited unsigned installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      validation_run_id:
+        description: Successful validation run for this exact source revision
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
+    steps:
+      - name: Require successful validation of this exact revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GH_REPO" = 'NukeItGames/OpportunityCannon-Portfolio'
+          [[ "$VALIDATION_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GH_REPO/actions/runs/$VALIDATION_RUN_ID" > "$RUNNER_TEMP/validated-run.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          r = json.loads((Path(os.environ['RUNNER_TEMP'])/'validated-run.json').read_text())
+          assert r['head_sha'] == os.environ['GITHUB_SHA'], 'Validation must match this revision'
+          assert r['conclusion'] == 'success' and r['status'] == 'completed'
+          assert r['path'] == '.github/workflows/validate.yml'
+          assert r['head_repository']['full_name'] == os.environ['GH_REPO']
+          print('PASS exact-revision validation gate')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: Opportunity-Cannon-0.3.1-unsigned
+          path: audited
+          run-id: ${{ inputs.validation_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify evidence and prepare release checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib, struct
+          root = Path('audited')
+          assert json.loads((root/'test-results/privacy-final/distribution-scan.json').read_text())['findings'] == []
+          suites = json.loads((root/'test-results/ui-final/suites.json').read_text())
+          assert len(suites) == 7 and all(x['status'] == 'PASS' for x in suites)
+          checks = json.loads((root/'test-results/ui-final/summary.json').read_text())['results']
+          assert len(checks) == 10 and all(x['status'] == 'PASS' for x in checks)
+          output = root/'release-0.3.1'
+          installer = output/'Opportunity Cannon Setup 0.3.1.exe'
+          data = installer.read_bytes()
+          pe = struct.unpack_from('<I', data, 0x3c)[0]
+          assert data[pe:pe+4] == b'PE\0\0'
+          optional = pe + 24
+          magic = struct.unpack_from('<H', data, optional)[0]
+          assert magic in (0x10b, 0x20b)
+          directory = optional + (96 if magic == 0x10b else 112)
+          assert struct.unpack_from('<II', data, directory+4*8) == (0, 0), 'Expected unsigned installer'
+          files = [installer, output/'RUNTIME-NOTICES.txt']
+          (output/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+f.name+'\n' for f in files))
+          print('PASS unsigned installer, privacy evidence, acceptance and checksums')
+          PY
+      - name: Publish installer with explicit validation boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          Opportunity Cannon 0.3.1 for Windows x64. **Unsigned NSIS installer; not code-signed.**
+
+          The actual extracted application passed 63 baseline tests on Windows and Linux, TypeScript, production build, seven desktop acceptance suites, ten final UI checks, and packaged/extracted resource privacy gates. Fictional onboarding, Windows DPAPI storage, encrypted backup/restore, and protected application history were exercised. No personal profiles or applications are included.
+
+          Chrome/Edge form controls and the Edge extension page were tested. Interactive installation, upgrade/uninstall, Chrome popup installation, native handoff, default-browser dispatch, live discovery coverage, and optional live OAuth/Sheets/AI integrations were not verified. See docs/VALIDATION.md for scope.
+
+          Download the installer and compare it with SHA256SUMS.txt. RUNTIME-NOTICES.txt preserves upstream runtime notices. Run the installer on Windows x64 and launch Opportunity Cannon from the Start menu; browser helper installation is an explicit user step described in the README. Application source/branding retain the rights statement in LICENSE; dependencies retain their own terms.
+          NOTES
+          printf '\nRelease source: `%s`.\n\n[Successful exact-revision validation](https://github.com/NukeItGames/OpportunityCannon-Portfolio/actions/runs/%s).\n' "$GITHUB_SHA" "$VALIDATION_RUN_ID" >> "$RUNNER_TEMP/release-notes.md"
+          if gh release view v0.3.1 --json isDraft > "$RUNNER_TEMP/release-state.json" 2>/dev/null; then
+            python -c 'import json,os,pathlib; assert json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"release-state.json").read_text())["isDraft"], "Refusing to replace a published release"'
+            gh release edit v0.3.1 --target "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create v0.3.1 --draft --target "$GITHUB_SHA" --title 'Opportunity Cannon 0.3.1 — unsigned Windows portfolio build' --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release upload v0.3.1 'audited/release-0.3.1/Opportunity Cannon Setup 0.3.1.exe' audited/release-0.3.1/RUNTIME-NOTICES.txt audited/release-0.3.1/SHA256SUMS.txt
+          gh release edit v0.3.1 --draft=false --latest

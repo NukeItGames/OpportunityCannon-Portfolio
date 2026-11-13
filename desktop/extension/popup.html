@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font: 14px system-ui;
+        width: 380px;
+        padding: 12px;
+      }
+      button {
+        margin: 5px;
+        padding: 8px;
+      }
+      pre {
+        white-space: pre-wrap;
+      }
+      li {
+        margin: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2><img src="icons/48.png" width="32" height="32" alt="" style="vertical-align:middle;margin-right:8px">Opportunity Cannon</h2>
+    <p>
+      Review every answer. You alone submit. Sign-in, CAPTCHA, consent, and uploads
+      stay manual.
+    </p>
+    <button id="connect">Enable HTTPS access & reconnect</button
+    ><button id="retry">Fill this page or retry blank fields</button>
+    <p>
+      Edit answers in the desktop app, then OPEN & FILL again. After navigation, create
+      a task for the exact new page URL.
+    </p>
+    <pre id="status" role="status"></pre>
+    <ul id="fields"></ul>
+    <script src="popup.js"></script>
+  </body>
+</html>
